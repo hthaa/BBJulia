@@ -69,3 +69,43 @@ function tsm(x, n, k)
     end
     m
 end
+
+function bbintegrate1(a, b, l, u, N, n, k, lower, upper; method = "ll")
+    if method == "ll"
+        quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n, N), lower, upper)[1]
+    else
+        quadgk(x -> dbeta(x, a, b, l, u) * dcbinom(x, n, N, k), lower, upper)[1]
+    end
+end
+
+function bbintegrate1(a, b, l, u, N, n1, n2, k, lower, upper; method = "ll")
+    if method == "ll"
+        quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n1, N) * dbinom(x, n2, N), lower, upper)[1]
+    else
+        quadgk(x -> dbeta(x, a, b, l, u) * dcbinom(x, n1, N, k) * dcbinom(x, n2, N, k), lower, upper)[1]
+    end
+end
+
+function betaparameters(x, n, k, model, l, u)
+    m = tsm(x, n, k)
+    s2 = m[2] - m[1]^2
+    g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (math.sqrt(s2)^3)
+    g4 = (m[4] - 4 * m[1] * m[3] + 6 * m[1]^2 * m[2] - 3 * m[1]^4) / (math.sqrt(s2)**4)
+    if model == 4
+        r = 6 * (g4 - g3^2 - 1) / (6 + 3 * g3^2 - 2 * g4)
+        if g3 < 0
+            a = r / 2 * (1 + (1 - ((24 * (r + 1)) / ((r + 2) * (r + 3) * g4 - 3 * (r - 6) * (r + 1))))^0.5)
+            b = r / 2 * (1 - (1 - ((24 * (r + 1)) / ((r + 2) * (r + 3) * g4 - 3 * (r - 6) * (r + 1))))^0.5)
+        else
+            b = r / 2 * (1 + (1 - ((24 * (r + 1)) / ((r + 2) * (r + 3) * g4 - 3 * (r - 6) * (r + 1))))^0.5)
+            a = r / 2 * (1 - (1 - ((24 * (r + 1)) / ((r + 2) * (r + 3) * g4 - 3 * (r - 6) * (r + 1))))^0.5)
+        l = m[1] - ((a * (s2 * (a + b + 1))^0.5) / (a * b)^0.5)
+        u = m[1] + ((b * (s2 * (a + b + 1))^0.5) / (a * b)^0.5)
+        end
+    end
+    if model == 2
+        a = ((l - m[1]) * (l * (m[1] - u) - m[1]^2 + m[1] * u - s2)) / (s2 * (l - u))
+        b = ((m[1] - u) * (l * (u - m[1]) + m[1]^2 - m[1] * u + s2)) / (s2 * (u - l))
+    end
+    [a, b, l, u]
+end
