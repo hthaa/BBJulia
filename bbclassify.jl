@@ -1,6 +1,28 @@
 using Pkg
 Pkg.add("QuadGK")
+Pkg.add("CSV")
+Pkg.add("DataFrames")
+Pkg.add("LinearAlgebra")
 using QuadGK
+using CSV
+using DataFrames
+using LinearAlgebra
+
+test = CSV.read("C:/Users/thorb/OneDrive/Julia prog/BBJulia/test.csv", delim = ";", header = false, DataFrame)
+
+test2 = Matrix(test)
+
+sums = sum(test2, dims = 2)
+
+tsm(sums, 20, 0)
+
+function cba(x)
+    covmat = cov(x)
+    variance = sum(covmat)
+    diag = sum(Diagonal(covmat))
+    n = size(covmat)[1]
+    (n / (n - 1)) * (1 - (diag / variance))
+end
 
 function etl(mu, sigma, reliability, minimum, maximum)
     ((mu - minimum) * (maximum - mu) - (reliability * sigma)) / (sigma * (1 - reliability))
@@ -44,10 +66,8 @@ function dfac(x, r)
         if r <= 1
             x[i] = x[i]^r
         else
-            for j in 1:r
-                if j > 1
-                    x[i] = x[i] * (x_o[i] - j + 1)
-                end
+            for j in 2:r
+                x[i] = x[i] * (x_o[i] - j + 1)
             end
         end
     end
@@ -86,10 +106,10 @@ function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper; method = "ll")
     end
 end
 
-function betaparameters(x, n, k, model, l, u)
+function betaparameters(x, n, k, model; l = 0, u = 1)
     m = tsm(x, n, k)
     s2 = m[2] - m[1]^2
-    g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (math.sqrt(s2)^3)
+    g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (s2^0.5)^3
     g4 = (m[4] - 4 * m[1] * m[3] + 6 * m[1]^2 * m[2] - 3 * m[1]^4) / (s2^0.5)^4
     if model == 4
         r = 6 * (g4 - g3^2 - 1) / (6 + 3 * g3^2 - 2 * g4)
@@ -99,9 +119,9 @@ function betaparameters(x, n, k, model, l, u)
         else
             b = r / 2 * (1 + (1 - ((24 * (r + 1)) / ((r + 2) * (r + 3) * g4 - 3 * (r - 6) * (r + 1))))^0.5)
             a = r / 2 * (1 - (1 - ((24 * (r + 1)) / ((r + 2) * (r + 3) * g4 - 3 * (r - 6) * (r + 1))))^0.5)
+        end
         l = m[1] - ((a * (s2 * (a + b + 1))^0.5) / (a * b)^0.5)
         u = m[1] + ((b * (s2 * (a + b + 1))^0.5) / (a * b)^0.5)
-        end
     end
     if model == 2
         a = ((l - m[1]) * (l * (m[1] - u) - m[1]^2 + m[1] * u - s2)) / (s2 * (l - u))
@@ -109,3 +129,17 @@ function betaparameters(x, n, k, model, l, u)
     end
     [a, b, l, u]
 end
+
+function k(mean, variance, reliability, length)
+    vare = variance * (1 - reliability)
+    num = length * ((length - 1) * (variance - vare) - length * variance + mean * (length - mean))
+    den = 2 * (mean * (length - mean) - (variance - vare))
+    num / den
+end
+
+function etl(mean, variance, reliability, min = 0, max = 1)
+    return ((mean - min) * (max - mean) - (reliability * variance)) / (variance * (1 - reliability))
+end
+
+sum(cov(test2))
+sum(Diagonal(cov(test2)))
