@@ -78,7 +78,7 @@ function bbintegrate1(a, b, l, u, N, n, k, lower, upper; method = "ll")
     end
 end
 
-function bbintegrate1(a, b, l, u, N, n1, n2, k, lower, upper; method = "ll")
+function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper; method = "ll")
     if method == "ll"
         quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n1, N) * dbinom(x, n2, N), lower, upper)[1]
     else
@@ -90,7 +90,7 @@ function betaparameters(x, n, k, model, l, u)
     m = tsm(x, n, k)
     s2 = m[2] - m[1]^2
     g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (math.sqrt(s2)^3)
-    g4 = (m[4] - 4 * m[1] * m[3] + 6 * m[1]^2 * m[2] - 3 * m[1]^4) / (math.sqrt(s2)**4)
+    g4 = (m[4] - 4 * m[1] * m[3] + 6 * m[1]^2 * m[2] - 3 * m[1]^4) / (s2^0.5)^4
     if model == 4
         r = 6 * (g4 - g3^2 - 1) / (6 + 3 * g3^2 - 2 * g4)
         if g3 < 0
