@@ -37,3 +37,35 @@ function dcbinom(p, n, N, k)
     e = k * p * (1 - p)
     a - e * (b - 2*c + d)
 end
+
+function dfac(x, r)
+    x_o = copy(x)
+    for i in 1:length(x)
+        if r <= 1
+            x[i] = x[i]^r
+        else
+            for j in 1:r
+                if j > 1
+                    x[i] = x[i] * (x_o[i] - j + 1)
+                end
+            end
+        end
+    end
+    x
+end
+
+function tsm(x, n, k)
+    m = [0.0, 0.0, 0.0, 0.0]
+    for i in 1:4
+        if i == 1
+            m[i] = mean(x) / n
+        else
+            y = copy(x)
+            a = mean(dfac(y, i))[1]
+            b = dfac([n - 2], i - 2)[1]
+            c = 1 / dfac([n], 2)[1]
+            m[i] = (a / b) * c
+        end
+    end
+    m
+end
