@@ -7,14 +7,12 @@ using QuadGK
 using CSV
 using DataFrames
 using LinearAlgebra
+using Statistics
 
-test = CSV.read("C:/Users/thorb/OneDrive/Julia prog/BBJulia/test.csv", delim = ";", header = false, DataFrame)
-
-test2 = Matrix(test)
-
-sums = sum(test2, dims = 2)
-
-tsm(sums, 20, 0)
+rawscores = Matrix(CSV.read("C:/Users/thorb/OneDrive/Julia prog/BBJulia/test.csv", delim = ";", header = false, DataFrame))
+sumscores = sum(rawscores, dims = 2)
+meanscores = mean(rawscores, dims = 2)
+cba(rawscores)
 
 function cba(x)
     covmat = cov(x)
@@ -23,6 +21,8 @@ function cba(x)
     n = size(covmat)[1]
     (n / (n - 1)) * (1 - (diag / variance))
 end
+
+cba(rawscores)
 
 function etl(mu, sigma, reliability, minimum, maximum)
     ((mu - minimum) * (maximum - mu) - (reliability * sigma)) / (sigma * (1 - reliability))
@@ -106,7 +106,7 @@ function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper; method = "ll")
     end
 end
 
-function betaparameters(x, n, k, model; l = 0, u = 1)
+function betaparameters(x, n, k, model, l = 0, u = 1)
     m = tsm(x, n, k)
     s2 = m[2] - m[1]^2
     g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (s2^0.5)^3
@@ -127,7 +127,7 @@ function betaparameters(x, n, k, model; l = 0, u = 1)
         a = ((l - m[1]) * (l * (m[1] - u) - m[1]^2 + m[1] * u - s2)) / (s2 * (l - u))
         b = ((m[1] - u) * (l * (u - m[1]) + m[1]^2 - m[1] * u + s2)) / (s2 * (u - l))
     end
-    [a, b, l, u]
+    Dict("alpha" => a, "beta" => b, "lower" => l, "upper" => u)
 end
 
 function k(mean, variance, reliability, length)
@@ -141,5 +141,37 @@ function etl(mean, variance, reliability, min = 0, max = 1)
     return ((mean - min) * (max - mean) - (reliability * variance)) / (variance * (1 - reliability))
 end
 
-sum(cov(test2))
-sum(Diagonal(cov(test2)))
+function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper = 1, failsafe = true, method = "ll", output = ["accuracy", "consistency"])
+    out = Dict()
+    pushfirst!(cut, minimum)
+    push!(cut, maximum)
+    truecut = Vector{Float64}(undef, size(cut)[1])
+    for i in 1:size(truecut)[1]
+        truecut[i] = (cut[i] - minimum) / (maximum - minimum)
+    end
+    if method == "ll"
+        N_not_rounded = etl(mean(x), var(x), reliability, minimum, maximum)
+        N = round(N_not_rounded)
+        pars = betaparameters(x, N, 0, 4, minimum, maximum)
+        if (failsafe == true && model == 4) && (pars["lower"] < 0 || pars["upper"] > 1)
+            pars = betaparameters(x, N, 0, 2, l = lower, u = upper)
+        end
+        pars["etl"] = N_not_rounded
+        pars["etl_rounded"] = N
+        pars["lords_k"] = 0
+        for i in 1:size(cut)[1]
+            cut[i] = round(truecut[i] * N)
+        end
+    else
+        N = maximum
+        K = k(mean(x), var(x), reliability, N)
+        pars = betaparameters(x, N, K, 4, minimum, maximum)
+        if (failsafe == true && model == 4) && (pars["lower"] < 0 || pars["upper"] > 1)
+            pars = betaparameters(x, N, K, 2, l = lower, u = upper)
+        end
+        pars["atl"] = N
+        pars["lords_k"] = K
+    end
+end
+
+cac(sumscores, cba(rawscores), 0, 20, [10], 4, 0, 1, true, "ll")
