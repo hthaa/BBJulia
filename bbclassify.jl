@@ -143,6 +143,9 @@ end
 # Function for calculating classification accuracy and consistency using the Hanson anb Brennan or Livingston and Lewis approaches.
 function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper = 1, failsafe = true, method = "ll", output = ["accuracy", "consistency"])
     out = Dict()
+    minimum = Float64(minimum)
+    maximum = Float64(maximum)
+    cut = Float64.(cut)
     pushfirst!(cut, minimum)
     push!(cut, maximum)
     truecut = Vector{Float64}(undef, size(cut)[1])
@@ -162,6 +165,7 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         for i in 1:size(cut)[1]
             cut[i] = round(truecut[i] * N)
         end
+        cut = Int64.(cut)
     else
         N = Int(maximum)
         K = k(mean(x), var(x), reliability, N)
@@ -171,6 +175,7 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         end
         pars["atl"] = N
         pars["lords_k"] = K
+        cut = Int64.(cut)
     end
     out["Parameters"] = pars
     if "accuracy" in output
