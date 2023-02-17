@@ -9,7 +9,7 @@ using DataFrames
 using LinearAlgebra
 using Statistics
 
-rawscores = Matrix(CSV.read("C:/Users/thorb/OneDrive/Julia prog/BBJulia/test.csv", delim = ";", header = false, DataFrame))
+rawscores = Matrix(CSV.read("test.csv", delim = ";", header = false, DataFrame))
 sumscores = sum(rawscores, dims = 2)
 meanscores = mean(rawscores, dims = 2)
 cba(rawscores)
@@ -90,7 +90,7 @@ function tsm(x, n, k)
     m
 end
 
-function bbintegrate1(a, b, l, u, N, n, k, lower, upper; method = "ll")
+function bbintegrate1(a, b, l, u, N, n, k, lower, upper, method = "ll")
     if method == "ll"
         quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n, N), lower, upper)[1]
     else
@@ -98,7 +98,7 @@ function bbintegrate1(a, b, l, u, N, n, k, lower, upper; method = "ll")
     end
 end
 
-function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper; method = "ll")
+function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper, method = "ll")
     if method == "ll"
         quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n1, N) * dbinom(x, n2, N), lower, upper)[1]
     else
@@ -151,7 +151,7 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
     end
     if method == "ll"
         N_not_rounded = etl(mean(x), var(x), reliability, minimum, maximum)
-        N = round(N_not_rounded)
+        N = Int(round(N_not_rounded))
         pars = betaparameters(x, N, 0, 4, minimum, maximum)
         if (failsafe == true && model == 4) && (pars["lower"] < 0 || pars["upper"] > 1)
             pars = betaparameters(x, N, 0, 2, l = lower, u = upper)
@@ -163,7 +163,7 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
             cut[i] = round(truecut[i] * N)
         end
     else
-        N = maximum
+        N = Int(maximum)
         K = k(mean(x), var(x), reliability, N)
         pars = betaparameters(x, N, K, 4, minimum, maximum)
         if (failsafe == true && model == 4) && (pars["lower"] < 0 || pars["upper"] > 1)
@@ -172,6 +172,71 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         pars["atl"] = N
         pars["lords_k"] = K
     end
+    out["Parameters"] = pars
+
+    if "accuracy" in output
+        confmat = Array{Float64, 2}(undef, N + 1, size(cut)[1] - 1)
+        for i in 1:(size(cut)[1] - 1)
+            for j in 1:(N + 1)
+                confmat[j, i] = bbintegrate1(pars["alpha"], pars["beta"], pars["lower"], pars["upper"], N, (j - 1), pars["lords_k"], truecut[i], truecut[i + 1], method)
+            end
+        end
+        confusionmatrix = Array{Float64, 2}(undef, size(cut)[1] - 1, size(cut)[1] - 1)
+        for i in 1:(size(cut)[1] - 1)
+            for j in 1:(size(cut)[1] - 1)
+                if i != (size(cut)[1] - 1)
+                    confusionmatrix[i, j] = sum(confmat[(cut[i] + 1):cut[i + 1], j])
+                else
+                    confusionmatrix[i, j] = sum(confmat[(cut[i] + 1):(N + 1), j])
+                end
+            end
+        end
+        out["confusion_matrix"] = confusionmatrix
+        out["overall_accuracy"] = sum(Diagonal(confusionmatrix))
+    end
+    if "consistency" in output
+        consmat = Array{Float64, 2}(undef, N + 1, N + 1)
+        for i in 1:(N + 1)
+            for j in 1:(N + 1)
+                consmat[i, j] = bbintegrate2(pars["alpha"], pars["beta"], pars["lower"], pars["upper"], N, (i - 1), (j - 1), pars["lords_k"], 0, 1, method)
+            end
+        end        
+        consistencymatrix = Array{Float64, 2}(undef, size(cut)[1] - 1, size(cut)[1] - 1)
+        for i in 1:(size(cut)[1] - 1)
+            for j in 1:(size(cut)[1] - 1)
+                if i == 1 && j == 1
+                    consistencymatrix[i, j] = sum(consmat[1:(cut[i + 1]), 1:(cut[j + 1])])
+                end
+                if i == 1 && (j != 1 && j != size(cut)[1] - 1)
+                    consistencymatrix[i, j] = sum(consmat[1:(cut[i + 1]), (cut[j] + 1):(cut[j + 1])])
+                end
+                if i == 1  && j == size(cut)[1] - 1
+                    consistencymatrix[i, j] = sum(consmat[1:(cut[i + 1]), (cut[j] + 1):(cut[j + 1]) + 1])
+                end
+                if (i != 1 && i != size(cut)[1] - 1) && j == 1
+                    consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1]), 1:(cut[j + 1])])
+                end
+                if (i != 1 && i != size(cut)[1] - 1) && (j != 1 && j != size(cut)[1] - 1)
+                    consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1]), (cut[j] + 1):(cut[j + 1])])
+                end
+                if (i != 1 && i != size(cut)[1] - 1) && j == size(cut)[1] - 1
+                    consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1]), (cut[j] + 1):cut[j + 1] + 1])
+                end
+                if i == size(cut)[1] - 1 && j == 1
+                    consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1] + 1), 1:(cut[j + 1])])
+                end
+                if i == size(cut)[1] - 1 && (j != 1 && j != size(cut)[1] - 1)
+                    consistencymatrix[i, j] = sum(consmat[((cut[i] + 1)):(cut[i + 1] + 1), (cut[j] + 1):(cut[j + 1])])
+                end
+                if i == size(cut)[1] - 1 && j == size(cut)[1] - 1
+                    consistencymatrix[i, j] = sum(consmat[((cut[i] + 1)):(cut[i + 1] + 1), (cut[j] + 1):(cut[j + 1]) + 1])
+                end
+            end
+        end
+        out["consistency_matrix"] = consistencymatrix
+        out["overall_consistency"] = sum(Diagonal(consistencymatrix))
+    end
+    out
 end
 
-cac(sumscores, cba(rawscores), 0, 20, [10], 4, 0, 1, true, "ll")
+cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "ll")
