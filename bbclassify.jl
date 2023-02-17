@@ -9,11 +9,12 @@ using DataFrames
 using LinearAlgebra
 using Statistics
 
+# Demo data:
 rawscores = Matrix(CSV.read("test.csv", delim = ";", header = false, DataFrame))
 sumscores = sum(rawscores, dims = 2)
 meanscores = mean(rawscores, dims = 2)
-cba(rawscores)
 
+# Cronbachs Alpha reliability coefficient
 function cba(x)
     covmat = cov(x)
     variance = sum(covmat)
@@ -22,12 +23,12 @@ function cba(x)
     (n / (n - 1)) * (1 - (diag / variance))
 end
 
-cba(rawscores)
-
+# Livingston and Lewis' Effective Test Length
 function etl(mu, sigma, reliability, minimum, maximum)
     ((mu - minimum) * (maximum - mu) - (reliability * sigma)) / (sigma * (1 - reliability))
 end
 
+# Lord's k
 function k(mu, sigma, reliability, length) 
     sigma_e = sigma * (1 - reliability)
     num = length * ((length - 1) * (sigma - sigma_e) - length * sigma + mu * (length - mu))
@@ -35,10 +36,12 @@ function k(mu, sigma, reliability, length)
     num / den
 end
 
+# Beta function
 function beta(a, b)
     quadgk(x -> x^(a - 1) * (1 - x)^(b - 1), 0, 1)[1]
 end
 
+# Beta distribution probability density function
 function dbeta(x, a, b, l, u)
     if x < l || x > u
         0
@@ -47,10 +50,12 @@ function dbeta(x, a, b, l, u)
     end
 end
 
+# Binomial distribution probability mass function
 function dbinom(p, n, N)
     binomial(N, n) * (p^n * (1 - p)^(N - n))
 end
 
+# Lord's two-term approximation to the compound binomial distribution
 function dcbinom(p, n, N, k)
     a = dbinom(p, n, N)
     b = dbinom(p, n, N - 2)
@@ -60,6 +65,7 @@ function dcbinom(p, n, N, k)
     a - e * (b - 2*c + d)
 end
 
+# Descending factorial function
 function dfac(x, r)
     x_o = copy(x)
     for i in 1:length(x)
@@ -74,6 +80,7 @@ function dfac(x, r)
     x
 end
 
+# True-score distribution moment generating function
 function tsm(x, n, k)
     m = [0.0, 0.0, 0.0, 0.0]
     for i in 1:4
@@ -90,6 +97,7 @@ function tsm(x, n, k)
     m
 end
 
+# Beta Binomial integration
 function bbintegrate1(a, b, l, u, N, n, k, lower, upper, method = "ll")
     if method == "ll"
         quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n, N), lower, upper)[1]
@@ -98,6 +106,7 @@ function bbintegrate1(a, b, l, u, N, n, k, lower, upper, method = "ll")
     end
 end
 
+# Beta Compound-Binomial integration
 function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper, method = "ll")
     if method == "ll"
         quadgk(x -> dbeta(x, a, b, l, u) * dbinom(x, n1, N) * dbinom(x, n2, N), lower, upper)[1]
@@ -106,6 +115,7 @@ function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper, method = "ll")
     end
 end
 
+# Beta true-score distribution shape and location parameters
 function betaparameters(x, n, k, model, l = 0, u = 1)
     m = tsm(x, n, k)
     s2 = m[2] - m[1]^2
@@ -128,17 +138,6 @@ function betaparameters(x, n, k, model, l = 0, u = 1)
         b = ((m[1] - u) * (l * (u - m[1]) + m[1]^2 - m[1] * u + s2)) / (s2 * (u - l))
     end
     Dict("alpha" => a, "beta" => b, "lower" => l, "upper" => u)
-end
-
-function k(mean, variance, reliability, length)
-    vare = variance * (1 - reliability)
-    num = length * ((length - 1) * (variance - vare) - length * variance + mean * (length - mean))
-    den = 2 * (mean * (length - mean) - (variance - vare))
-    num / den
-end
-
-function etl(mean, variance, reliability, min = 0, max = 1)
-    return ((mean - min) * (max - mean) - (reliability * variance)) / (variance * (1 - reliability))
 end
 
 function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper = 1, failsafe = true, method = "ll", output = ["accuracy", "consistency"])
@@ -173,7 +172,6 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         pars["lords_k"] = K
     end
     out["Parameters"] = pars
-
     if "accuracy" in output
         confmat = Array{Float64, 2}(undef, N + 1, size(cut)[1] - 1)
         for i in 1:(size(cut)[1] - 1)
