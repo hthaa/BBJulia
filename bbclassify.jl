@@ -140,6 +140,7 @@ function betaparameters(x, n, k, model, l = 0, u = 1)
     Dict("alpha" => a, "beta" => b, "lower" => l, "upper" => u)
 end
 
+# Function for calculating classification accuracy and consistency using the Hanson anb Brennan or Livingston and Lewis approaches.
 function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper = 1, failsafe = true, method = "ll", output = ["accuracy", "consistency"])
     out = Dict()
     pushfirst!(cut, minimum)
@@ -237,4 +238,5 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
     out
 end
 
+# Example use of the cac function.
 cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "ll")
