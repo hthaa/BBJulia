@@ -10,7 +10,7 @@ using LinearAlgebra
 using Statistics
 
 # Demo data:
-rawscores = Matrix(CSV.read("test.csv", delim = ";", header = false, DataFrame))
+rawscores = Matrix(CSV.read("C:/Users/thorb/OneDrive/Julia prog/BBJulia/test.csv", delim = ";", header = false, DataFrame))
 sumscores = sum(rawscores, dims = 2)
 meanscores = mean(rawscores, dims = 2)
 
@@ -116,7 +116,7 @@ function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper, method = "ll")
 end
 
 # Beta true-score distribution shape and location parameters
-function betaparameters(x, n, k, model, l = 0, u = 1)
+function betaparameters(x, n, k, model, l, u)
     m = tsm(x, n, k)
     s2 = m[2] - m[1]^2
     g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (s2^0.5)^3
@@ -153,11 +153,15 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         truecut[i] = (cut[i] - minimum) / (maximum - minimum)
     end
     if method == "ll"
+        x = Float64.(x)
         N_not_rounded = etl(mean(x), var(x), reliability, minimum, maximum)
         N = Int(round(N_not_rounded))
-        pars = betaparameters(x, N, 0, 4, minimum, maximum)
+        for i in 1:size(x)[1]       
+            x[i] = ((x[i] - minimum) / (maximum - minimum)) * N_not_rounded
+        end
+        pars = betaparameters(x, N, 0, 4)
         if (failsafe == true && model == 4) && (pars["lower"] < 0 || pars["upper"] > 1)
-            pars = betaparameters(x, N, 0, 2, l = lower, u = upper)
+            pars = betaparameters(x, N, 0, 2, l = lower, u = upper, minimum, maximum, reliability, method)
         end
         pars["etl"] = N_not_rounded
         pars["etl_rounded"] = N
@@ -230,10 +234,10 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
                     consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1] + 1), 1:(cut[j + 1])])
                 end
                 if i == size(cut)[1] - 1 && (j != 1 && j != size(cut)[1] - 1)
-                    consistencymatrix[i, j] = sum(consmat[((cut[i] + 1)):(cut[i + 1] + 1), (cut[j] + 1):(cut[j + 1])])
+                    consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1] + 1), (cut[j] + 1):(cut[j + 1])])
                 end
                 if i == size(cut)[1] - 1 && j == size(cut)[1] - 1
-                    consistencymatrix[i, j] = sum(consmat[((cut[i] + 1)):(cut[i + 1] + 1), (cut[j] + 1):(cut[j + 1]) + 1])
+                    consistencymatrix[i, j] = sum(consmat[(cut[i] + 1):(cut[i + 1] + 1), (cut[j] + 1):(cut[j + 1]) + 1])
                 end
             end
         end
@@ -243,5 +247,9 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
     out
 end
 
-# Example use of the cac function.
-cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "ll")
+# Example run with sum-scores.
+cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "ll") #Livingston and Lewis approach
+cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "hb") #Hanson and Brennan approach
+
+# Example run with mean-scores (only works for Livingston and Lewis approach).
+cac(meanscores, cba(rawscores), 0, 1, [.4, .6], 4, 0, 1, true, "ll") #
