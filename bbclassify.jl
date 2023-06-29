@@ -3,16 +3,16 @@ Pkg.add("QuadGK")
 Pkg.add("CSV")
 Pkg.add("DataFrames")
 Pkg.add("LinearAlgebra")
+Pkg.add("Statistics")
+Pkg.add("Random")
+Pkg.add("Distributions")
 using QuadGK
 using CSV
 using DataFrames
 using LinearAlgebra
 using Statistics
-
-# Demo data:
-rawscores = Matrix(CSV.read("C:/Users/thorb/OneDrive/Julia prog/BBJulia/test.csv", delim = ";", header = false, DataFrame))
-sumscores = sum(rawscores, dims = 2)
-meanscores = mean(rawscores, dims = 2)
+using Random
+using Distributions
 
 # Cronbachs Alpha reliability coefficient
 function cba(x)
@@ -52,11 +52,15 @@ end
 
 # Binomial distribution probability mass function
 function dbinom(p, n, N)
+    n = big(n)
+    N = big(N)
     binomial(N, n) * (p^n * (1 - p)^(N - n))
 end
 
 # Lord's two-term approximation to the compound binomial distribution
 function dcbinom(p, n, N, k)
+    n = big(n)
+    N = big(N)
     a = dbinom(p, n, N)
     b = dbinom(p, n, N - 2)
     c = dbinom(p, n - 1, N - 2)
@@ -116,7 +120,7 @@ function bbintegrate2(a, b, l, u, N, n1, n2, k, lower, upper, method = "ll")
 end
 
 # Beta true-score distribution shape and location parameters
-function betaparameters(x, n, k, model, l, u)
+function betaparameters(x, n, k, model, l = 0, u = 1)
     m = tsm(x, n, k)
     s2 = m[2] - m[1]^2
     g3 = (m[3] - 3 * m[1] * m[2] + 2 * m[1]^3) / (s2^0.5)^3
@@ -161,7 +165,7 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         end
         pars = betaparameters(x, N, 0, 4)
         if (failsafe == true && model == 4) && (pars["lower"] < 0 || pars["upper"] > 1)
-            pars = betaparameters(x, N, 0, 2, l = lower, u = upper, minimum, maximum, reliability, method)
+            pars = betaparameters(x, N, 0, 2, lower, upper)
         end
         pars["etl"] = N_not_rounded
         pars["etl_rounded"] = N
@@ -206,9 +210,12 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
         consmat = Array{Float64, 2}(undef, N + 1, N + 1)
         for i in 1:(N + 1)
             for j in 1:(N + 1)
-                consmat[i, j] = bbintegrate2(pars["alpha"], pars["beta"], pars["lower"], pars["upper"], N, (i - 1), (j - 1), pars["lords_k"], 0, 1, method)
+                if i <= j
+                    consmat[i, j] = bbintegrate2(pars["alpha"], pars["beta"], pars["lower"], pars["upper"], N, (i - 1), (j - 1), pars["lords_k"], 0, 1, method)
+                end
             end
-        end        
+        end
+        consmat = triu(consmat) + transpose(triu(consmat, 1))       
         consistencymatrix = Array{Float64, 2}(undef, size(cut)[1] - 1, size(cut)[1] - 1)
         for i in 1:(size(cut)[1] - 1)
             for j in 1:(size(cut)[1] - 1)
@@ -247,9 +254,25 @@ function cac(x, reliability, minimum, maximum, cut, model = 4, lower = 0, upper 
     out
 end
 
+
+# Simulate data
+Random.seed!(123456)
+d = Beta(6, 4)
+lower = 0.15
+upper = 0.85
+p_success = rand(d, 100000) * (lower + (upper - lower))
+rawscores = zeros(Int, 100000, 100)
+for i in 1:100000
+    for j in 1:100
+        rawscores[i, j] = rand(Binomial(1, p_success[i]))
+    end
+end
+sumscores = sum(rawscores, dims = 2)
+meanscores = mean(rawscores, dims = 2)
+
 # Example run with sum-scores.
-cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "ll") #Livingston and Lewis approach
-cac(sumscores, cba(rawscores), 0, 20, [8, 12], 4, 0, 1, true, "hb") #Hanson and Brennan approach
+cac(sumscores, cba(rawscores), 0, 100, [50, 75], 4, 0, 1, true, "ll") #Livingston and Lewis approach
+#cac(sumscores, cba(rawdata), 0, 100, [50, 75], 4, 0, 1, true, "hb") #Hanson and Brennan approach
 
 # Example run with mean-scores (only works for Livingston and Lewis approach).
 cac(meanscores, cba(rawscores), 0, 1, [.4, .6], 4, 0, 1, true, "ll") #
